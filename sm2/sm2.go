@@ -41,8 +41,8 @@ type PublicKey struct {
 }
 
 type PrivateKey struct {
-	D     *big.Int
-	Curve P256V1Curve
+	D *big.Int
+	*PublicKey
 }
 
 type sm2Signature struct {
@@ -85,13 +85,15 @@ func GenerateKey(rand io.Reader) (*PrivateKey, *PublicKey, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	privateKey := new(PrivateKey)
-	privateKey.Curve = sm2P256V1
-	privateKey.D = new(big.Int).SetBytes(priv)
+
 	publicKey := new(PublicKey)
 	publicKey.Curve = sm2P256V1
 	publicKey.X = x
 	publicKey.Y = y
+
+	privateKey := new(PrivateKey)
+	privateKey.PublicKey = publicKey
+	privateKey.D = new(big.Int).SetBytes(priv)
 	return privateKey, publicKey, nil
 }
 
@@ -111,8 +113,8 @@ func RawBytesToPrivateKey(bytes []byte) (*PrivateKey, error) {
 		return nil, errors.New("Private key raw bytes length must be " + string(KeyBytes))
 	}
 	privateKey := new(PrivateKey)
-	privateKey.Curve = sm2P256V1
 	privateKey.D = new(big.Int).SetBytes(bytes)
+	privateKey.PublicKey = caculatePubKey(privateKey.D)
 	return privateKey, nil
 }
 
@@ -163,10 +165,10 @@ func (pri *PrivateKey) GetRawBytes() []byte {
 	}
 }
 
-func caculatePubKey(priv *PrivateKey) *PublicKey {
+func caculatePubKey(privD *big.Int) *PublicKey {
 	pub := new(PublicKey)
-	pub.Curve = priv.Curve
-	pub.X, pub.Y = priv.Curve.ScalarBaseMult(priv.D.Bytes())
+	pub.Curve = sm2P256V1
+	pub.X, pub.Y = sm2P256V1.ScalarBaseMult(privD.Bytes())
 	return pub
 }
 
@@ -411,11 +413,10 @@ func UnmarshalSign(sign []byte) (r, s *big.Int, err error) {
 
 func Sign(priv *PrivateKey, userId []byte, in []byte) ([]byte, error) {
 	digest := sm3.New()
-	pubX, pubY := priv.Curve.ScalarBaseMult(priv.D.Bytes())
 	if userId == nil {
 		userId = sm2SignDefaultUserId
 	}
-	e := caculateE(digest, &priv.Curve, pubX, pubY, userId, in)
+	e := caculateE(digest, &priv.Curve, priv.X, priv.Y, userId, in)
 
 	var r, s *big.Int
 	intZero := new(big.Int).SetInt64(0)

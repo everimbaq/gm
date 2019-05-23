@@ -128,10 +128,8 @@ var testSignData = []testSm2SignData{
 
 func TestSign(t *testing.T) {
 	for _, data := range testSignData {
-		priv := new(PrivateKey)
-		priv.Curve = GetSm2P256V1()
 		dBytes, _ := hex.DecodeString(data.d)
-		priv.D = new(big.Int).SetBytes(dBytes)
+		priv, _ := RawBytesToPrivateKey(dBytes)
 		inBytes, _ := hex.DecodeString(data.in)
 		sign, err := Sign(priv, nil, inBytes)
 		if err != nil {
